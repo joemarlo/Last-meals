@@ -1,15 +1,22 @@
 ---
 title: "R Notebook"
-output: html_notebook
-editor_options: 
+output:
+  html_document:
+    df_print: paged
+editor_options:
   chunk_output_type: console
 ---
 
-https://pastebin.com/TiERhrpg
-https://en.wikipedia.org/wiki/Last_meal
-https://henryhargreaves.com/No-Seconds
+```{r include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+```
 
-```{r, libs}
+
+https://pastebin.com/TiERhrpg  
+https://en.wikipedia.org/wiki/Last_meal  
+https://henryhargreaves.com/No-Seconds  
+
+```{r message=FALSE, warning=FALSE}
 library(tidyverse)
 library(httr)
 library(stringdist)
@@ -56,7 +63,7 @@ theme_set(theme_custom())
 ```
 
 
-```{r scraping}
+```{r scraping, message=FALSE, warning=FALSE}
 # set the base url
 base.url <- "https://en.wikipedia.org/wiki/Last_meal"
 response <- read_html(base.url)
@@ -74,7 +81,9 @@ US.table <- tables[4] %>%
   as_tibble() %>% 
   separate(
     V1,
-    into = c("Name", "Crime", "State", "Year", "Method.of.Dispatch", "Requested.Meal", "tmp", "tmp2", "tmp3", "tmp4", "tmp5"),
+    into = c("Name", "Crime", "State", "Year",
+             "Method.of.Dispatch", "Requested.Meal",
+             "tmp", "tmp2", "tmp3", "tmp4", "tmp5"),
     sep = "\n"
   )
 ```
@@ -86,7 +95,7 @@ US.table[35, "State"] <- US.table[35, "Method.of.Dispatch"]
 US.table[35, "Year"] <- US.table[35, "tmp"]
 US.table[35, "Method.of.Dispatch"] <- US.table[35, "tmp3"]
 US.table[35, "Requested.Meal"] <- US.table[35, "tmp5"]
-US.table[35,]
+# US.table[35,]
 
 # remove extra columns and first row
 US.table <- select(US.table, -contains("tmp"))
@@ -107,7 +116,7 @@ US.table$Method.of.Dispatch <- recode(
 # convert Year to numeric
 US.table$Year <- as.numeric(US.table$Year)
 
-US.table %>% View
+US.table %>% head()
 ```
 
 We need to remove observations of inmates that didn't request a meal or received a meal that was not requested. We're interested in what people *wanted* as their last meal.
@@ -121,10 +130,10 @@ EDA
 
 ```{r, EDA}
 # summary bar plots
-table(US.table$Crime) %>% barplot()
-table(US.table$State) %>% barplot()
-table(US.table$Year) %>% barplot()
-table(US.table$Method.of.Dispatch) %>% barplot()
+# table(US.table$Crime) %>% barplot()
+# table(US.table$State) %>% barplot()
+# table(US.table$Year) %>% barplot()
+# table(US.table$Method.of.Dispatch) %>% barplot()
 
 # plot of methods over time
 US.table %>% 
@@ -149,11 +158,14 @@ parsed.words %>%
   summarize(n = n()) %>%
   arrange(desc(n)) %>% 
   top_n(n = 15, wt = n) %>% 
-  ggplot(aes(x = reorder(word, -n), y = n)) +
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
   geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
   labs(title = "Most common words within last meal requests",
-       x = "Word",
-       y = "Count")
+       x = "",
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none")
 
 ```
 
@@ -166,7 +178,7 @@ Pull out the ingredients which will act as comparison for our foods
 
 
 ```{r}
-foodbase <- read_xml('Foodbase/FoodBase_curated.xml')
+foodbase <- read_xml('Foodbase/FoodBase_uncurated.xml')
 # xml_structure(foodbase, file = "xmlstructure.txt")
 food.words <- xml_find_all(foodbase, xpath = "/collection/document/annotation/text") %>% xml_text()
 
@@ -185,7 +197,8 @@ parsed.words %>%
   group_by(word) %>%
   summarize(n = n()) %>% 
   arrange(desc(n)) %>% 
-  mutate(match = word %in% food.words) %>% View
+  mutate(match = word %in% food.words) %>%
+  head()
 
 
 # top food words
@@ -195,11 +208,14 @@ parsed.words %>%
   summarize(n = n()) %>%
   arrange(desc(n)) %>% 
   top_n(n = 15, wt = n) %>% 
-  ggplot(aes(x = reorder(word, -n), y = n)) +
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
   geom_col() +
-  labs(title = "Most common words within last meal requests",
-       x = "Word",
-       y = "Count")
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Most common food for last meal requests",
+       x = "",
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none")
 
 ```
 
@@ -223,7 +239,7 @@ parsed.ngrams %>%
   ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
   geom_col() +
   scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
-  labs(title = "Most common words within last meal requests",
+  labs(title = "Most common food for last meal requests",
        x = "Word",
        y = "Count") +
   coord_flip() +
@@ -244,8 +260,9 @@ name.groups <- parsed.ngrams %>%
 # check to see if the $word is contained within 
 #  another $word for that $Name
 deduped.ngrams <- lapply(name.groups, function(group) {
-  # if only one word then return that one word
-  if (nrow(group) == 1) {
+  
+  # if only one unique word then return that one word
+  if (length(unique(group$word)) == 1) {
     non.duplicates <- group$word[1]
   } else{
     # for groups that have more than one row check to 
@@ -275,6 +292,7 @@ deduped.ngrams <- deduped.ngrams %>%
 # n removed rows
 nrow(parsed.ngrams) - nrow(deduped.ngrams)
 
+# total counts of items
 deduped.ngrams %>% 
   group_by(word) %>%
   summarize(n = n()) %>%
@@ -289,5 +307,18 @@ deduped.ngrams %>%
   coord_flip() +
   theme(legend.position = "none")
 
+# histogram of number of different typles of food requested
+deduped.ngrams %>% 
+  group_by(Name) %>%
+  summarize(n.foods = n()) %>%
+  ggplot(aes(x = n.foods)) +
+  geom_histogram(binwidth = 1, color = "white") +
+  labs(title = "Breadth of food types within last meal requests",
+       x = "Number of foods requested",
+       y = "")
 ```
+
+
+## Estimate calories per meal
+
 
