@@ -317,11 +317,11 @@ deduped.ngrams %>%
 ```
 
 ```{r echo=FALSE}
-ggsave(filename = "Plots/Common_last_meals.svg",
-       plot = last_plot(),
-       device = "svg",
-       width = 8,
-       height = 7)
+# ggsave(filename = "Plots/Common_last_meals.svg",
+#        plot = last_plot(),
+#        device = "svg",
+#        width = 8,
+#        height = 7)
 ```
 
 
@@ -335,6 +335,24 @@ deduped.ngrams %>%
   labs(title = "Breadth of food types within last meal requests",
        x = "Number of foods requested",
        y = "")
+```
+
+```{r echo=FALSE}
+# frequency of food over time
+deduped.ngrams %>%
+  left_join(y = US.table[, c("Name", "Year")]) %>% 
+  mutate(Decade = floor(Year / 10) * 10) %>% 
+  group_by(Decade, word) %>%
+  summarize(n.foods = n()) %>%
+  filter(n.foods > 3) %>% 
+  ggplot(aes(x = word, y = n.foods)) +
+  geom_col() +
+  facet_wrap(~Decade, nrow = 1) +
+  labs(title = "Frequency of food types over time",
+       subtitle = "Must contain at least 4 occurences",
+       x = "",
+       y = "") +
+  coord_flip()
 ```
 
 
