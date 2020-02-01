@@ -88,7 +88,7 @@ US.table <- tables[4] %>%
   )
 ```
 
-```{r, manual fixes}
+```{r }
 # fix row 35
 US.table[35, "Crime"] <- US.table[35, "State"]
 US.table[35, "State"] <- US.table[35, "Method.of.Dispatch"]
@@ -103,7 +103,7 @@ US.table <- US.table[-1,]
 
 # standardize the method of dispatch descriptions
 US.table$Method.of.Dispatch <- str_to_sentence(US.table$Method.of.Dispatch)
-table(US.table$Method.of.Dispatch)
+# table(US.table$Method.of.Dispatch)
 
 US.table$Method.of.Dispatch <- recode(
   US.table$Method.of.Dispatch,
@@ -128,7 +128,7 @@ US.table <- US.table[!(US.table$Name %in% excl.names),]
 
 EDA
 
-```{r, EDA}
+```{r eval=FALSE, include=FALSE}
 # summary bar plots
 # table(US.table$Crime) %>% barplot()
 # table(US.table$State) %>% barplot()
@@ -151,7 +151,9 @@ parsed.words <- US.table %>%
   select(Name, Requested.Meal) %>% 
   unnest_tokens(output = word, input = Requested.Meal) %>% 
   anti_join(stop_words, by = "word")
+```
 
+```{r echo=FALSE}
 # top words
 parsed.words %>% 
   group_by(word) %>%
@@ -199,8 +201,9 @@ parsed.words %>%
   arrange(desc(n)) %>% 
   mutate(match = word %in% food.words) %>%
   head()
+```
 
-
+```{r echo=FALSE}
 # top food words
 parsed.words %>% 
   filter(word %in% food.words) %>% 
@@ -230,7 +233,9 @@ parsed.ngrams <- US.table %>%
   unnest_tokens(output = word, input = Requested.Meal, token = "skip_ngrams") %>% 
   anti_join(stop_words, by = "word") %>% 
   filter(word %in% food.words)
+```
 
+```{r echo=FALSE}
 parsed.ngrams %>% 
   group_by(word) %>%
   summarize(n = n()) %>%
@@ -244,7 +249,6 @@ parsed.ngrams %>%
        y = "Count") +
   coord_flip() +
   theme(legend.position = "none")
-
 ```
 
 The issue now is that we're double counting some items. Ice, cream, and ice cream are the most obvious. We can remove this duplicates on an inmate basis by excluding words that exist in longer strings. E.g. exclude "ice" if there is another string like "ice cream" but keep "ice cream."
@@ -282,6 +286,7 @@ deduped.ngrams <- lapply(name.groups, function(group) {
   }
   return(group %>% filter(word %in% non.duplicates))
 }) %>% bind_rows()
+rm(name.groups)
 
 # unlist the word column
 deduped.ngrams <- deduped.ngrams %>% 
@@ -291,7 +296,9 @@ deduped.ngrams <- deduped.ngrams %>%
 
 # n removed rows
 nrow(parsed.ngrams) - nrow(deduped.ngrams)
+```
 
+```{r echo=FALSE}
 # total counts of items
 deduped.ngrams %>% 
   group_by(word) %>%
