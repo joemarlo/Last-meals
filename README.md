@@ -1,6 +1,6 @@
 # Text analysis of last meals
 
-A look at the most popular last meal requests by inmates on deathrow. Data from [wikipedia](https://en.wikipedia.org/wiki/Last_meal).
+A look at the most popular last meal requests by inmates on deathrow. Data on 130 inmates from [wikipedia](https://en.wikipedia.org/wiki/Last_meal).
 <br>
 <br>
 

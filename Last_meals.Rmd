@@ -309,7 +309,8 @@ deduped.ngrams %>%
   ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
   geom_col() +
   scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
-  labs(title = "Most common food for last meal requests",
+  labs(title = "Top 15 most common last meal requests",
+       subtitle = "Data from 130 U.S. inmates since 1927",
        x = "",
        y = "Count") +
   coord_flip() +
