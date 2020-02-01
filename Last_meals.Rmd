@@ -5,9 +5,9 @@ editor_options:
   chunk_output_type: console
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+https://pastebin.com/TiERhrpg
+https://en.wikipedia.org/wiki/Last_meal
+https://henryhargreaves.com/No-Seconds
 
 ```{r, libs}
 library(tidyverse)
@@ -15,6 +15,10 @@ library(httr)
 library(stringdist)
 library(rvest)    
 library(stringr)
+library(tidytext)
+library(igraph)
+library(ggraph)
+data(stop_words)
 ```
 
 ```{r scraping}
@@ -73,14 +77,14 @@ US.table %>% View
 
 We need to remove observations of inmates that didn't request a meal or received a meal that was not requested. We're interested in what people *wanted* as their last meal.
 
-```{r}
+```{r, exclude names}
 excl.names <- c("David Mason", "Odell Barnes", "Philip Workman")
 US.table <- US.table[!(US.table$Name %in% excl.names),]
 ```
 
 EDA
 
-```{r}
+```{r, EDA}
 # summary bar plots
 table(US.table$Crime) %>% barplot()
 table(US.table$State) %>% barplot()
@@ -91,8 +95,76 @@ table(US.table$Method.of.Dispatch) %>% barplot()
 US.table %>% 
   group_by(Year, Method.of.Dispatch) %>% 
   summarize(n = n()) %>% 
-  ggplot(aes(x = Year, y = n, group = Method.of.Dispatch, color = Method.of.Dispatch)) +
-  geom_line()
+  ggplot(aes(x = Year, y = n, group = Method.of.Dispatch,
+             fill = Method.of.Dispatch)) +
+  geom_col(position = 'dodge') +
+  labs(y = 'Count')
 ```
 
+Text
+```{r}
+parsed.words <- US.table %>%
+  select(Name, Requested.Meal) %>% 
+  unnest_tokens(output = word, input = Requested.Meal) %>% 
+  anti_join(stop_words, by = "word")
+
+# top words
+parsed.words %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>% 
+  top_n(n = 10, wt = n) %>% 
+  ggplot(aes(x = reorder(word, -n), y = n)) +
+  geom_col() +
+  labs(title = "Most common words within last meal requests",
+       x = "Word",
+       y = "Count")
+
+```
+
+
+Foodbase
+
+Download foodbase from here: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6827550/
+
+Pull out the ingredients which will act as comparison for our foods
+
+
+```{r}
+foodbase <- read_xml('Foodbase/FoodBase_curated.xml')
+# xml_structure(foodbase, file = "xmlstructure.txt")
+food.words <- xml_find_all(foodbase, xpath = "/collection/document/annotation/text") %>% xml_text()
+
+# xml_children()
+# xml_siblings()
+# xml_parent()
+# xml_find_one()
+# xml_find_all()
+# xml_path()
+# xml_text()
+# xml_attrs()
+# xml_attr()
+# xml_name()
+
+parsed.words %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  mutate(match = word %in% food.words) %>% View
+
+
+# top food words
+parsed.words %>% 
+  filter(word %in% food.words) %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>% 
+  top_n(n = 10, wt = n) %>% 
+  ggplot(aes(x = reorder(word, -n), y = n)) +
+  geom_col() +
+  labs(title = "Most common words within last meal requests",
+       x = "Word",
+       y = "Count")
+
+```
 
