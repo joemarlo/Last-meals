@@ -206,6 +206,9 @@ parsed.words %>%
 # repeat with ngrams
 
 ```{r}
+# tokenize the words skipping ngrams
+#   this allows multiple words per token so we include
+#   food like "fried chicken", not just "chicken"
 parsed.ngrams <- US.table %>%
   select(Name, Requested.Meal) %>% 
   unnest_tokens(output = word, input = Requested.Meal, token = "skip_ngrams") %>% 
@@ -223,7 +226,68 @@ parsed.ngrams %>%
   labs(title = "Most common words within last meal requests",
        x = "Word",
        y = "Count") +
-  coord_flip()
+  coord_flip() +
+  theme(legend.position = "none")
+
+```
+
+The issue now is that we're double counting some items. Ice, cream, and ice cream are the most obvious. We can remove this duplicates on an inmate basis by excluding words that exist in longer strings. E.g. exclude "ice" if there is another string like "ice cream" but keep "ice cream."
+
+```{r}
+# split the $word with more than one word into a list
+#  then split the dataframe by $Name
+name.groups <- parsed.ngrams %>%
+  mutate(word = str_split(word, pattern = " ")) %>% 
+  group_by(Name) %>% 
+  group_split()
+
+# check to see if the $word is contained within 
+#  another $word for that $Name
+deduped.ngrams <- lapply(name.groups, function(group) {
+  # if only one word then return that one word
+  if (nrow(group) == 1) {
+    non.duplicates <- group$word[1]
+  } else{
+    # for groups that have more than one row check to 
+    #   see if a word is contained in another row
+    duplicate.bool <-
+      sapply(1:length(group$word), function(i) {
+        x <- group$word[i]
+        lst <- group$word
+        lst <- lst[!(lst %in% x)]
+        word.in.list <- sapply(lst, function(y) {
+          x %in% y
+        })
+        return(sum(word.in.list) == 0)
+      })
+    
+    non.duplicates <- group$word[duplicate.bool]
+  }
+  return(group %>% filter(word %in% non.duplicates))
+}) %>% bind_rows()
+
+# unlist the word column
+deduped.ngrams <- deduped.ngrams %>% 
+  rowwise() %>% 
+  mutate(word = paste0(word, collapse = " ")) %>% 
+  ungroup()
+
+# n removed rows
+nrow(parsed.ngrams) - nrow(deduped.ngrams)
+
+deduped.ngrams %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  top_n(n = 15, wt = n) %>% 
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Most common food for last meal requests",
+       x = "",
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none")
 
 ```
 
