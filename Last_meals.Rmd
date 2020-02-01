@@ -21,6 +21,41 @@ library(ggraph)
 data(stop_words)
 ```
 
+```{r include=FALSE}
+theme_custom <- function() {
+  theme_gray() +
+    theme(
+      panel.grid.minor.y = element_line(color = NA),
+      panel.grid.major.y = element_line(color = "gray95"),
+      panel.grid.minor.x = element_line(color = NA),
+      panel.grid.major.x = element_line(color = "gray95"),
+      panel.background = element_rect(fill = NA),
+      plot.background = element_rect(
+        fill = NA,
+        color = "gray95",
+        size = 10
+      ),
+      plot.margin = unit(c(1, 1, 1, 1), "cm"),
+      axis.title = element_text(color = "gray30"),
+      axis.ticks = element_line(color = NA),
+      strip.background = element_rect(fill = "gray95"),
+      strip.text = element_text(
+        color = "gray30",
+        size = 11,
+        face = "bold"
+      ),
+      plot.title = element_text(color = "gray30",
+                                face = "bold"),
+      plot.subtitle = element_text(size = 10,
+                                   color = "gray30"),
+      text = element_text(family = "Helvetica")
+    )
+}
+
+theme_set(theme_custom())
+```
+
+
 ```{r scraping}
 # set the base url
 base.url <- "https://en.wikipedia.org/wiki/Last_meal"
@@ -113,7 +148,7 @@ parsed.words %>%
   group_by(word) %>%
   summarize(n = n()) %>%
   arrange(desc(n)) %>% 
-  top_n(n = 10, wt = n) %>% 
+  top_n(n = 15, wt = n) %>% 
   ggplot(aes(x = reorder(word, -n), y = n)) +
   geom_col() +
   labs(title = "Most common words within last meal requests",
@@ -159,12 +194,36 @@ parsed.words %>%
   group_by(word) %>%
   summarize(n = n()) %>%
   arrange(desc(n)) %>% 
-  top_n(n = 10, wt = n) %>% 
+  top_n(n = 15, wt = n) %>% 
   ggplot(aes(x = reorder(word, -n), y = n)) +
   geom_col() +
   labs(title = "Most common words within last meal requests",
        x = "Word",
        y = "Count")
+
+```
+
+# repeat with ngrams
+
+```{r}
+parsed.ngrams <- US.table %>%
+  select(Name, Requested.Meal) %>% 
+  unnest_tokens(output = word, input = Requested.Meal, token = "skip_ngrams") %>% 
+  anti_join(stop_words, by = "word") %>% 
+  filter(word %in% food.words)
+
+parsed.ngrams %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  top_n(n = 15, wt = n) %>% 
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Most common words within last meal requests",
+       x = "Word",
+       y = "Count") +
+  coord_flip()
 
 ```
 
