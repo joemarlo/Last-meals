@@ -11,11 +11,6 @@ editor_options:
 knitr::opts_chunk$set(message=FALSE, warning=FALSE)
 ```
 
-
-https://pastebin.com/TiERhrpg  
-https://en.wikipedia.org/wiki/Last_meal  
-https://henryhargreaves.com/No-Seconds  
-
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
 library(httr)
@@ -62,6 +57,10 @@ theme_custom <- function() {
 theme_set(theme_custom())
 ```
 
+## Sources
+https://pastebin.com/TiERhrpg  
+https://en.wikipedia.org/wiki/Last_meal  
+https://henryhargreaves.com/No-Seconds  
 
 ```{r scraping, message=FALSE, warning=FALSE}
 # set the base url
@@ -256,7 +255,9 @@ The issue now is that we're double counting some items. Ice, cream, and ice crea
 ```{r}
 # split the $word with more than one word into a list
 #  then split the dataframe by $Name
+# remove 'meal' fromt the dataset
 name.groups <- parsed.ngrams %>%
+  filter(word != "meal") %>% 
   mutate(word = str_split(word, pattern = " ")) %>% 
   group_by(Name) %>% 
   group_split()
@@ -313,7 +314,18 @@ deduped.ngrams %>%
        y = "Count") +
   coord_flip() +
   theme(legend.position = "none")
+```
 
+```{r echo=FALSE}
+ggsave(filename = "Plots/Common_last_meals.svg",
+       plot = last_plot(),
+       device = "svg",
+       width = 8,
+       height = 7)
+```
+
+
+```{r echo=FALSE}
 # histogram of number of different typles of food requested
 deduped.ngrams %>% 
   group_by(Name) %>%
@@ -329,3 +341,16 @@ deduped.ngrams %>%
 ## Estimate calories per meal
 
 
+```{r}
+library(NutrienTrackeR)
+
+food_composition_data$USDA %>% 
+  as_tibble() %>% 
+  filter(str_detect(food_name, 'ice cream')) %>% 
+  View
+
+findFoodName(keywords = c("fries"), food_database = "USDA")
+
+```
+
+https://github.com/hadley/usdanutrients

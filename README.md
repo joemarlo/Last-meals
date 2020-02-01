@@ -1,2 +1,9 @@
-# Last-meals
-Text analysis of last meals
+# Text analysis of last meals
+
+A look at the most popular last meal requests by inmates on deathrow. Data from [wikipedia](https://en.wikipedia.org/wiki/Last_meal).
+<br>
+<br>
+
+<p align="center">
+<img src="Plots/Common_last_meals.svg" width=79%>
+</p>
