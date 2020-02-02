@@ -61,7 +61,7 @@ US.table$Year <- as.numeric(US.table$Year)
 # We need to remove observations of inmates that didn't request a
 #   meal or received a meal that was not requested. We're interested 
 #   in what people *wanted* as their last meal.
-excl.names <- c("David Mason", "Odell Barnes", "Philip Workman")
+excl.names <- c("David Mason", "Odell Barnes", "Philip Workman", "Ledell Lee")
 US.table <- US.table[!(US.table$Name %in% excl.names),]
 
 # write the table out
