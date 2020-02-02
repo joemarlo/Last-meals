@@ -92,6 +92,7 @@ foodbase <- read_xml('Data/Foodbase/FoodBase_uncurated.xml')
 food.words <- xml_find_all(foodbase,
                            xpath = "/collection/document/annotation/text") %>%
   xml_text() %>% 
+  unique() %>% 
   enframe(value = "word") %>% 
   select(-name)
 
