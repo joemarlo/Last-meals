@@ -21,6 +21,8 @@ library(tidytext)
 library(igraph)
 library(ggraph)
 data(stop_words)
+
+US.table <- read_csv("Data/US_last_meals.csv")
 ```
 
 ```{r include=FALSE}
@@ -57,91 +59,7 @@ theme_custom <- function() {
 theme_set(theme_custom())
 ```
 
-## Sources
-https://pastebin.com/TiERhrpg  
-https://en.wikipedia.org/wiki/Last_meal  
-https://henryhargreaves.com/No-Seconds  
 
-```{r scraping, message=FALSE, warning=FALSE}
-# set the base url
-response <- read_html('https://en.wikipedia.org/wiki/Last_meal')
-
-# scrape the table
-tables <- html_nodes(x = response,
-                         xpath = '//table[contains(@class, "sortable")]') %>% 
-  html_children()
-
-# pull the US table
-US.table <- tables[4] %>%
-  html_children() %>%
-  html_text() %>%
-  matrix(ncol = 1, byrow = TRUE) %>%
-  as_tibble() %>% 
-  separate(
-    V1,
-    into = c("Name", "Crime", "State", "Year",
-             "Method.of.Dispatch", "Requested.Meal",
-             "tmp", "tmp2", "tmp3", "tmp4", "tmp5"),
-    sep = "\n"
-  )
-```
-
-```{r }
-# fix row 35
-US.table[35, "Crime"] <- US.table[35, "State"]
-US.table[35, "State"] <- US.table[35, "Method.of.Dispatch"]
-US.table[35, "Year"] <- US.table[35, "tmp"]
-US.table[35, "Method.of.Dispatch"] <- US.table[35, "tmp3"]
-US.table[35, "Requested.Meal"] <- US.table[35, "tmp5"]
-# US.table[35,]
-
-# remove extra columns and first row
-US.table <- select(US.table, -contains("tmp"))
-US.table <- US.table[-1,]
-
-# standardize the method of dispatch descriptions
-US.table$Method.of.Dispatch <- str_to_sentence(US.table$Method.of.Dispatch)
-# table(US.table$Method.of.Dispatch)
-
-US.table$Method.of.Dispatch <- recode(
-  US.table$Method.of.Dispatch,
-  "Electric chair" = "Electrocution",
-  "Electrocution, photographed in the electric chair" = "Electrocution",
-  "Hanged, last person executed in public in the us" = "Hanging",
-  "Lethal injection. Clemency appeal based on his being too overweight for lethal injection drugs to work on him properly" = "Lethal injection"
-)
-
-# convert Year to numeric
-US.table$Year <- as.numeric(US.table$Year)
-
-US.table %>% head()
-```
-
-We need to remove observations of inmates that didn't request a meal or received a meal that was not requested. We're interested in what people *wanted* as their last meal.
-
-```{r, exclude names}
-excl.names <- c("David Mason", "Odell Barnes", "Philip Workman")
-US.table <- US.table[!(US.table$Name %in% excl.names),]
-```
-
-EDA
-
-```{r eval=FALSE, include=FALSE}
-# summary bar plots
-# table(US.table$Crime) %>% barplot()
-# table(US.table$State) %>% barplot()
-# table(US.table$Year) %>% barplot()
-# table(US.table$Method.of.Dispatch) %>% barplot()
-
-# plot of methods over time
-US.table %>% 
-  group_by(Year, Method.of.Dispatch) %>% 
-  summarize(n = n()) %>% 
-  ggplot(aes(x = Year, y = n, group = Method.of.Dispatch,
-             fill = Method.of.Dispatch)) +
-  geom_col(position = 'dodge') +
-  labs(y = 'Count')
-```
 
 Text
 ```{r}
@@ -166,7 +84,6 @@ parsed.words %>%
        y = "Count") +
   coord_flip() +
   theme(legend.position = "none")
-
 ```
 
 
@@ -178,20 +95,15 @@ Pull out the ingredients which will act as comparison for our foods
 
 
 ```{r}
-foodbase <- read_xml('Foodbase/FoodBase_uncurated.xml')
-# xml_structure(foodbase, file = "xmlstructure.txt")
-food.words <- xml_find_all(foodbase, xpath = "/collection/document/annotation/text") %>% xml_text()
+food.words <- read_csv("Data/food_words.csv") %>%
+  pull() %>%
+  str_to_lower()
 
-# xml_children()
-# xml_siblings()
-# xml_parent()
-# xml_find_one()
-# xml_find_all()
-# xml_path()
-# xml_text()
-# xml_attrs()
-# xml_attr()
-# xml_name()
+# remove condiments to the food words list
+excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups",
+                "mustard", "mayonnaise", "mayo", "sauce", "sour cream",
+                "pepper", "ranch", "ranch dressing", "meat", "butter")
+food.words <- food.words[!(food.words %in% excl.words)]
 
 parsed.words %>% 
   group_by(word) %>%
@@ -218,7 +130,6 @@ parsed.words %>%
        y = "Count") +
   coord_flip() +
   theme(legend.position = "none")
-
 ```
 
 # repeat with ngrams
@@ -256,8 +167,7 @@ The issue now is that we're double counting some items. Ice, cream, and ice crea
 # split the $word with more than one word into a list
 #  then split the dataframe by $Name
 # remove unrelated words
-name.groups <- parsed.ngrams %>%
-  filter(!(word %in% c("meal", "food", "snack"))) %>% 
+name.groups <- parsed.ngrams %>% 
   mutate(word = str_split(word, pattern = " ")) %>% 
   group_by(Name) %>% 
   group_split()
@@ -265,6 +175,14 @@ name.groups <- parsed.ngrams %>%
 # check to see if the $word is contained within 
 #  another $word for that $Name
 deduped.ngrams <- lapply(name.groups, function(group) {
+  
+  # first remove $words that are more than two
+  #  individual words (e.g. "chocolate ice cream") b/c
+  #  these will be captured in "ice cream"
+  group <- group %>%
+    rowwise() %>%
+    filter(length(word) <= 2) %>% 
+    ungroup()
   
   # if only one unique word then return that one word
   if (length(unique(group$word)) == 1) {
@@ -299,6 +217,7 @@ deduped.ngrams <- deduped.ngrams %>%
 nrow(parsed.ngrams) - nrow(deduped.ngrams)
 ```
 
+
 ```{r echo=FALSE}
 # total counts of items
 deduped.ngrams %>% 
@@ -331,11 +250,10 @@ deduped.ngrams <- deduped.ngrams %>%
                                  start = 0,
                                  stop = nchar(word)-1),
                           "NA"),
-         S.match = S.word %in% word,
-         word = if_else(S.match,
+         word = if_else(S.word %in% word,
                         S.word,
                         word)) %>% 
-  select(-c("S.word", "S.match"))
+  select(-S.word)
 
 get_top_matches <- function(current.word, words.to.match, n = 5){
   # function returns that top n matches of the current.name
@@ -418,6 +336,10 @@ deduped.ngrams %>%
 
 # correlation
 
+Explain process
+
+
+
 ```{r}
 cosine_matrix <- function(tokenized_data, lower = 0, upper = 1, filt = 0) {
   # ruthlessly stolen from https://www.markhw.com/blog/word-similarity-graphs
@@ -453,8 +375,14 @@ cosine_matrix <- function(tokenized_data, lower = 0, upper = 1, filt = 0) {
 }
 
 cos_mat <- cosine_matrix(deduped.ngrams, lower = .035,
-                         upper = .90, filt = .80)
+                         upper = .90, filt = .75)
 
+
+```
+
+There are two clear groupings here. In the right section, "home-style" food such as mashed potatoes, gravy, tea, peas, and rice all naturally go together. In the center of the left section, hamburger, onion rings, fried chicken, and steak also are naturally grouped. Intiutively, cheese is stuck right in the middle of these two groups. I interpret this as it's the great equalizer, [almost everyone loves cheese](link).
+
+```{r}
 set.seed(44)
 graph_from_adjacency_matrix(cos_mat, 
                             mode = "undirected", 
@@ -477,10 +405,7 @@ graph_from_adjacency_matrix(cos_mat,
 #        height = 7)
 ```
 
-# still have issue of duplicates when it comes to adjectives 
-```{r}
-deduped.ngrams %>% filter(str_detect(word, 'ice cream')) %>% View
-```
+
 
 
 
