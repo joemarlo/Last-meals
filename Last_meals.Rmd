@@ -477,6 +477,10 @@ graph_from_adjacency_matrix(cos_mat,
 #        height = 7)
 ```
 
+# still have issue of duplicates when it comes to adjectives 
+```{r}
+deduped.ngrams %>% filter(str_detect(word, 'ice cream')) %>% View
+```
 
 
 
