@@ -461,10 +461,12 @@ graph_from_adjacency_matrix(cos_mat,
                             weighted = TRUE) %>%
   ggraph(layout = 'nicely') +
   geom_edge_link(aes(alpha = weight),
-                 show.legend = FALSE) + 
+                 show.legend = FALSE,
+                 color = "#2b7551") + 
   geom_node_label(aes(label = name),
                   label.size = 0.1,
-                  size = 2)
+                  size = 2,
+                  color = "#0b2919")
 ```
 
 ```{r echo=FALSE}
