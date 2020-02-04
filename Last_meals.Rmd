@@ -374,7 +374,7 @@ cos_mat <- cosine_matrix(deduped.ngrams, lower = .035,
                          upper = .90, filt = .75)
 ```
 
-There are two clear groupings here. In the right section, "home-style" food such as mashed potatoes, gravy, tea, peas, and rice all naturally go together. In the center of the left section, hamburger, onion rings, fried chicken, and steak also are naturally grouped. Intiutively, cheese is stuck right in the middle of these two groups. I interpret this as it's the great equalizer, [almost everyone loves cheese](link).
+There are two clear communities here. In the right section, "home-style" food such as mashed potatoes, gravy, tea, peas, and rice all naturally go together. In the center of the left section, hamburger, onion rings, fried chicken, and steakare also naturally grouped. Intiutively, cheese is stuck right in the middle of these two groups. I interpret this as it's the great equalizer, [almost everyone loves cheese](link). It's important to view this graph a few different times with various random seeds. There's many correct ways to visualize the same graph and sometimes you can draw the wrong conclusions from the visualization so it's important to take the above conclusions with some reservation.
 
 ```{r}
 set.seed(40)
