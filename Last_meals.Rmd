@@ -18,6 +18,7 @@ library(stringdist)
 library(rvest)    
 library(stringr)
 library(tidytext)
+library(SnowballC)
 library(igraph)
 library(ggraph)
 data(stop_words)
@@ -61,12 +62,21 @@ theme_set(theme_custom())
 
 
 
-Text
+unigrams
 ```{r}
 parsed.words <- US.table %>%
   select(Name, Requested.Meal) %>% 
   unnest_tokens(output = word, input = Requested.Meal) %>% 
   anti_join(stop_words, by = "word")
+```
+
+```{r}
+# top words
+parsed.words %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>% 
+  tail(n = 20)
 ```
 
 ```{r echo=FALSE}
@@ -80,55 +90,21 @@ parsed.words %>%
   geom_col() +
   scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
   labs(title = "Most common words within last meal requests",
-       x = "",
+       x = NULL,
        y = "Count") +
   coord_flip() +
   theme(legend.position = "none")
 ```
-
-
-Foodbase
-
-Download foodbase from here: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6827550/
-
-Pull out the ingredients which will act as comparison for our foods
-
-
-```{r}
-food.words <- read_csv("Data/food_words.csv") %>%
-  pull() %>%
-  str_to_lower()
-
-# remove condiments to the food words list
-excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups", "pecan",
-                "mustard", "mayonnaise", "mayo", "sauce", "sour cream", "onion",
-                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter")
-food.words <- food.words[!(food.words %in% excl.words)]
-
-# add Coke
-food.words <- append(food.words, "coke")
-```
-
 
 ```{r echo=FALSE}
-# top food words
-parsed.words %>% 
-  filter(word %in% food.words) %>% 
-  group_by(word) %>%
-  summarize(n = n()) %>%
-  arrange(desc(n)) %>% 
-  top_n(n = 15, wt = n) %>% 
-  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
-  geom_col() +
-  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
-  labs(title = "Most common food for last meal requests",
-       x = "",
-       y = "Count") +
-  coord_flip() +
-  theme(legend.position = "none")
+# ggsave(filename = "Plots/unigrams.svg",
+#        plot = last_plot(),
+#        device = "svg",
+#        width = 8,
+#        height = 7)
 ```
 
-# repeat with ngrams
+## stemming
 
 ```{r}
 # tokenize the words skipping ngrams
@@ -137,25 +113,39 @@ parsed.words %>%
 parsed.ngrams <- US.table %>%
   select(Name, Requested.Meal) %>% 
   unnest_tokens(output = word, input = Requested.Meal, token = "skip_ngrams") %>% 
-  anti_join(stop_words, by = "word") %>% 
-  filter(word %in% food.words)
+  anti_join(stop_words, by = "word") %>%
+  mutate(stem = wordStem(word, language = 'english'))
 ```
 
-```{r echo=FALSE}
-parsed.ngrams %>% 
-  group_by(word) %>%
-  summarize(n = n()) %>%
-  arrange(desc(n)) %>%
-  top_n(n = 15, wt = n) %>% 
-  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
-  geom_col() +
-  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
-  labs(title = "Most common food for last meal requests",
-       x = "Word",
-       y = "Count") +
-  coord_flip() +
-  theme(legend.position = "none")
+Foodbase
+
+Download foodbase from here: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6827550/
+
+Pull out the ingredients which will act as comparison for our foods
+
+```{r}
+food.words <- read_csv("Data/food_words.csv") %>%
+  pull() %>%
+  str_to_lower()
+
+# remove condiments to the food words list
+excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups", "pecan",
+                "mustard", "mayonnaise", "mayo", "sauce", "sour cream", "fried", "onion",
+                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter")
+food.words <- food.words[!(food.words %in% excl.words)]
+
+# add Coke
+food.words <- append(food.words, c("coke", "pepsi"))
 ```
+
+```{r}
+parsed.ngrams <- parsed.ngrams %>% 
+  filter(word %in% food.words,
+         stem %in% wordStem(food.words, language = 'english'))
+head(parsed.ngrams)
+```
+
+
 
 The issue now is that we're double counting some items. Ice, cream, and ice cream are the most obvious. We can remove this duplicates on an inmate basis by excluding words that exist in longer strings. E.g. exclude "ice" if there is another string like "ice cream" but keep "ice cream."
 
@@ -213,44 +203,8 @@ deduped.ngrams <- deduped.ngrams %>%
 nrow(parsed.ngrams) - nrow(deduped.ngrams)
 ```
 
-
-```{r echo=FALSE}
-# total counts of items
-deduped.ngrams %>% 
-  group_by(word) %>%
-  summarize(n = n()) %>%
-  arrange(desc(n)) %>%
-  top_n(n = 15, wt = n) %>% 
-  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
-  geom_col() +
-  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
-  labs(title = "Top 15 most common last meal requests",
-       subtitle = "Data from 130 U.S. inmates since 1927",
-       x = "",
-       y = "Count") +
-  coord_flip() +
-  theme(legend.position = "none")
-```
-
-
 # check to see if there are any similar foods that are duplicates and should be edited
 ```{r}
-# replace words that end in "s" if there
-#  is an similar word in the dataset that doesn't
-#  end in "s"
-deduped.ngrams <- deduped.ngrams %>%
-  mutate(S.word = if_else(substr(word,
-                                 start = nchar(word),
-                                 stop = nchar(word)) == "s",
-                          substr(word,
-                                 start = 0,
-                                 stop = nchar(word)-1),
-                          "NA"),
-         word = if_else(S.word %in% word,
-                        S.word,
-                        word)) %>% 
-  select(-S.word)
-
 get_top_matches <- function(current.word, words.to.match, n = 5){
   # function returns that top n matches of the current.name
   #   within the names.to.match list via fuzzy string matching
@@ -260,45 +214,75 @@ get_top_matches <- function(current.word, words.to.match, n = 5){
 }
 
 # test the function
-get_top_matches(deduped.ngrams$word[1], unique(deduped.ngrams$word))
+get_top_matches(deduped.ngrams$stem[1], unique(deduped.ngrams$stem))
 
 # apply the function across the entire list to generate a data.frame
 #  containing the current.name and it's top 5 best matches
-lapply(deduped.ngrams$word,
-                      get_top_matches,
-                      words.to.match = unique(deduped.ngrams$word)) %>% 
+lapply(deduped.ngrams$stem,
+       get_top_matches,
+       words.to.match = unique(deduped.ngrams$stem)) %>% 
   unlist() %>% 
   matrix(ncol = 6, byrow = TRUE) %>% 
   as_tibble() %>% 
   setNames(c("Current.word", paste0("Match.", 1:5))) %>% 
-  View
+  head()
 ```
 
 ```{r echo=FALSE}
-# total counts of items
-deduped.ngrams %>% 
-  group_by(word) %>%
+# get most common word for each stem
+unique.stem.word.pairs <- deduped.ngrams %>% 
+  select(stem, word) %>%
+  group_by(stem, word) %>% 
+  summarize(n = n()) %>% 
+  group_by(stem) %>% 
+  filter(n == max(n)) %>% 
+  select(-n)
+
+# plot the total counts of stems, but use the word as the label
+final.freq.plot <- deduped.ngrams %>% 
+  group_by(stem) %>%
   summarize(n = n()) %>%
   arrange(desc(n)) %>%
-  top_n(n = 15, wt = n) %>% 
+  top_n(n = 10, wt = n) %>% 
+  left_join(unique.stem.word.pairs) %>% 
   ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
   geom_col() +
   scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
-  labs(title = "Top 15 most common items in last meal requests",
+  labs(title = "Top 10 most common items in last meal requests",
        subtitle = "Data from 130 U.S. inmates since 1927",
-       x = "",
+       x = NULL,
        y = "Count") +
   coord_flip() +
   theme(legend.position = "none")
+
+final.freq.plot
+
 ```
 
 ```{r echo=FALSE}
-# ggsave(filename = "Plots/Common_last_meals.svg",
-#        plot = last_plot(),
-#        device = "svg",
-#        width = 8,
-#        height = 7)
+ggsave(filename = "Plots/Common_last_meals.svg",
+       plot = last_plot(),
+       device = "svg",
+       width = 8,
+       height = 7)
 ```
+
+```{r}
+top.five <- c('ice cream', 'french fries', 'steak', 'pizza', 'fried chicken')
+
+deduped.ngrams %>% 
+  group_by(Name) %>% 
+  summarize(match = max(word %in% top.five)) %>% 
+  summarize(mean(match))
+
+deduped.ngrams %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>% 
+  filter(word %in% top.five) %>% 
+  summarize(sum(n))
+
+```
+
 
 ```{r echo=FALSE}
 # histogram of number of different typles of food requested
@@ -309,7 +293,7 @@ deduped.ngrams %>%
   geom_histogram(binwidth = 1, color = "white") +
   labs(title = "Breadth of food types within last meal requests",
        x = "Number of foods requested",
-       y = "")
+       y = NULL)
 ```
 
 ```{r echo=FALSE}
@@ -325,14 +309,42 @@ deduped.ngrams %>%
   facet_wrap(~Decade, nrow = 1) +
   labs(title = "Frequency of food types over time",
        subtitle = "Must contain at least 4 occurences",
-       x = "",
-       y = "") +
+       x = NULL,
+       y = NULL) +
   coord_flip()
 ```
 
-# correlation
+# stemming
+uses simple porter stemmer
+others available: https://cran.r-project.org/web/packages/corpus/vignettes/stemmer.html
 
-Explain process
+```{r}
+#stemming
+parsed.ngrams <- US.table %>%
+  select(Name, Requested.Meal) %>% 
+  unnest_tokens(output = word, input = Requested.Meal, token = "skip_ngrams") %>% 
+  anti_join(stop_words, by = "word") %>%
+  mutate(stem = wordStem(word)) %>% 
+  filter(word %in% food.words)
+```
+
+```{r echo=FALSE}
+parsed.ngrams %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  top_n(n = 15, wt = n) %>% 
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Most common food in last meal requests",
+       x = NULL,
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none")
+```
+
+
 
 
 
@@ -374,11 +386,11 @@ cos_mat <- cosine_matrix(deduped.ngrams, lower = .035,
                          upper = .90, filt = .75)
 ```
 
-There are two clear communities here. In the right section, "home-style" food such as mashed potatoes, gravy, tea, peas, and rice all naturally go together. In the center of the left section, hamburger, onion rings, fried chicken, and steakare also naturally grouped. Intiutively, cheese is stuck right in the middle of these two groups. I interpret this as it's the great equalizer, [almost everyone loves cheese](link). It's important to view this graph a few different times with various random seeds. There's many correct ways to visualize the same graph and sometimes you can draw the wrong conclusions from the visualization so it's important to take the above conclusions with some reservation.
+There are two clear communities here. In the top right section, "home-style" food such as mashed potatoes, gravy, tea, peas, and rice all naturally go together. In the center of the left section, hamburger, onion rings, fried chicken, and steakare also naturally grouped. Intiutively, cheese is stuck right in the middle of these two groups. I interpret this as it's the great equalizer, [almost everyone loves cheese](link). It's important to view this graph a few different times with various random seeds. There's many correct ways to visualize the same graph and sometimes you can draw the wrong conclusions from the visualization so it's important to take the above conclusions with some reservation.
 
 ```{r}
-set.seed(40)
-graph_from_adjacency_matrix(cos_mat, 
+set.seed(25)
+cosine.graph <- graph_from_adjacency_matrix(cos_mat, 
                             mode = "undirected", 
                             weighted = TRUE) %>%
   ggraph(layout = 'nicely') +
@@ -387,20 +399,54 @@ graph_from_adjacency_matrix(cos_mat,
                  color = "#2b7551") + 
   geom_node_label(aes(label = name),
                   label.size = 0.1,
-                  size = 2,
+                  size = 3,
                   color = "#0b2919")
+cosine.graph
 ```
 
 ```{r echo=FALSE}
-# ggsave(filename = "Plots/last_meals_graph.svg",
-#        plot = last_plot(),
-#        device = "svg",
-#        width = 8,
-#        height = 7)
+ggsave(filename = "Plots/last_meals_graph.svg",
+       plot = last_plot(),
+       device = "svg",
+       width = 8,
+       height = 7)
+```
+
+```{r}
+# save 20  different graphs so we can make a gif in GIMP
+set.seed(25)
+for (i in 1:20){
+  graph_from_adjacency_matrix(cos_mat, 
+                            mode = "undirected", 
+                            weighted = TRUE) %>%
+  ggraph(layout = 'nicely') +
+  geom_edge_link(aes(alpha = weight),
+                 show.legend = FALSE,
+                 color = "#2b7551") + 
+  geom_node_label(aes(label = name),
+                  label.size = 0.1,
+                  size = 3,
+                  color = "#0b2919")
+  
+  ggsave(filename = paste0("Plots/graph-gif-images/last_meals_graph", i, ".png"),
+         plot = last_plot(),
+         device = "png",
+         width = 8,
+         height = 7)
+  }
+
 ```
 
 
 
+## Fast food references
+
+```{r}
+fast.food.names <- c('KFC', 'McDonald', 'Big Mac', 'whopper', 'Burger King', 'Pizza Hut', 'Domino', 'Coke', 'Pepsi', 'Coca-Cola',  'Dr. Pepper')
+
+
+
+```
 
 
 ## Estimate calories per meal
@@ -421,4 +467,52 @@ findFoodName(keywords = c("fries"), food_database = "USDA")
 https://github.com/hadley/usdanutrients
 
 
+### OLD
 
+
+```{r echo=FALSE}
+# top food words
+parsed.words %>% 
+  filter(word %in% food.words) %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>% 
+  top_n(n = 15, wt = n) %>% 
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Most common food in last meal requests",
+       x = NULL,
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none")
+```
+
+# repeat with ngrams
+
+```{r}
+# tokenize the words skipping ngrams
+#   this allows multiple words per token so we include
+#   food like "fried chicken", not just "chicken"
+parsed.ngrams <- US.table %>%
+  select(Name, Requested.Meal) %>% 
+  unnest_tokens(output = word, input = Requested.Meal, token = "skip_ngrams") %>% 
+  anti_join(stop_words, by = "word") %>% 
+  filter(word %in% food.words)
+```
+
+```{r echo=FALSE}
+parsed.ngrams %>% 
+  group_by(word) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  top_n(n = 15, wt = n) %>% 
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Most common food in last meal requests",
+       x = NULL,
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none")
+```
