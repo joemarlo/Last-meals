@@ -88,6 +88,9 @@ US.table %>%
 
 # food words --------------------------------------------------------------
 
+# Download foodbase from here: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6827550/
+#  and unzip it into Data/Foodbase
+
 foodbase <- read_xml('Data/Foodbase/FoodBase_uncurated.xml')
 food.words <- xml_find_all(foodbase,
                            xpath = "/collection/document/annotation/text") %>%
