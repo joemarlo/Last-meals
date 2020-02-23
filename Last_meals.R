@@ -283,8 +283,8 @@ deduped.ngrams %>%
 cosine_matrix <- function(tokenized_data, lower = 0, upper = 1, filt = 0) {
   # ruthlessly stolen from https://www.markhw.com/blog/word-similarity-graphs
   
-  if (!all(c("word", "Name") %in% names(tokenized_data))) {
-    stop("tokenized_data must contain variables named word and Name")
+  if (!all(c("stem", "Name") %in% names(tokenized_data))) {
+    stop("tokenized_data must contain variables named stem and Name")
   }
   
   if (lower < 0 | lower > 1 | upper < 0 | upper > 1 | filt < 0 | filt > 1) {
@@ -316,7 +316,7 @@ cosine_matrix <- function(tokenized_data, lower = 0, upper = 1, filt = 0) {
 # calculate the cosine of our ngrams grouped by Name
 cos_mat <- cosine_matrix(deduped.ngrams, lower = .035,
                          upper = .90, filt = .75)
-head(cos_mat)
+cos_mat[1:5, 1:5]
 
 # graph our cosine matrix
 set.seed(44)
