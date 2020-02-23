@@ -110,9 +110,9 @@ food.words <- read_csv("Data/food_words.csv") %>%
   str_to_lower()
 
 # remove condiments to the food words list
-excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups", "pecan",
+excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups", "cigar",
                 "mustard", "mayonnaise", "mayo", "sauce", "sour cream", "fried", "onion",
-                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter", "cigar")
+                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter")
 food.words <- food.words[!(food.words %in% excl.words)]
 
 # add Coke

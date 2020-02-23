@@ -49,7 +49,7 @@ food.words <- read_csv("food_words.csv") %>%
     str_to_lower()
 
 # remove condiments to the food words list
-excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups", "pecan",
+excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups",
                 "mustard", "mayonnaise", "mayo", "sauce", "sour cream", "fried", "onion",
                 "onions", "pepper", "ranch", "ranch dressing", "meat", "butter", "cigar")
 food.words <- food.words[!(food.words %in% excl.words)]
