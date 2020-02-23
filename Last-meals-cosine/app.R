@@ -167,10 +167,10 @@ ui <- fluidPage(
             ),
             
             # Show a plot of the generated distribution
-            column(5,
+            column(4,
                    tableOutput("table")
                 ),
-            column(7,
+            column(8,
                    plotOutput("anglePlot",
                               height = '400px')
             )
