@@ -1,8 +1,5 @@
-
 library(tidyverse)
-library(httr)
 library(stringdist)
-library(rvest)    
 library(stringr)
 library(tidytext)
 library(SnowballC)
@@ -11,7 +8,6 @@ library(ggraph)
 data(stop_words)
 
 US.table <- read_csv("Data/US_last_meals.csv")
-
 
 
 # gg theme ----------------------------------------------------------------
@@ -49,23 +45,22 @@ theme_custom <- function() {
 theme_set(theme_custom())
 
 
-
-
 # create ngrams -----------------------------------------------------------
 
+# create unigrams and remove stop words
 parsed.words <- US.table %>%
   select(Name, Requested.Meal) %>% 
   unnest_tokens(output = word, input = Requested.Meal) %>% 
   anti_join(stop_words, by = "word")
 
-# top words
+# view the top words
 parsed.words %>% 
   group_by(word) %>%
   summarize(n = n()) %>%
   arrange(desc(n)) %>% 
   tail(n = 20)
 
-# top words
+# plot the top words
 parsed.words %>% 
   group_by(word) %>%
   summarize(n = n()) %>%
@@ -80,24 +75,23 @@ parsed.words %>%
   coord_flip() +
   theme(legend.position = "none")
 
-ggsave(filename = "Plots/unigrams.svg",
-       plot = last_plot(),
-       device = "svg",
-       width = 8,
-       height = 7)
-```
+# ggsave(filename = "Plots/unigrams.svg",
+#        plot = last_plot(),
+#        device = "svg",
+#        width = 8,
+#        height = 7)
 
-# stemming ----------------------------------------------------------------
 
-# tokenize the words skipping ngrams
-#   this allows multiple words per token so we include
+# tokenzing ----------------------------------------------------------------
+
+# tokenize uni, bi, and tri-grams so can include
 #   food like "fried chicken", not just "chicken"
 parsed.ngrams <- US.table %>%
   select(Name, Requested.Meal) %>% 
   unnest_tokens(output = word, input = Requested.Meal, token = "ngrams", n = 3, n_min = 1) %>% 
   anti_join(stop_words, by = "word")
 
-# EXAMPLE
+# EXAMPLE for blog plost
 enframe('butter pecan ice cream') %>%
   unnest_tokens(
     output = word,
@@ -118,18 +112,19 @@ food.words <- read_csv("Data/food_words.csv") %>%
 # remove condiments to the food words list
 excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups", "pecan",
                 "mustard", "mayonnaise", "mayo", "sauce", "sour cream", "fried", "onion",
-                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter")
+                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter", "cigar")
 food.words <- food.words[!(food.words %in% excl.words)]
 
 # add Coke
 food.words <- append(food.words, c("coke", "pepsi"))
 
+# filter the ngrams to food words
 parsed.ngrams <- parsed.ngrams %>% 
   filter(word %in% food.words)
-         # stem %in% wordStem(food.words, language = 'english'))
+
 head(parsed.ngrams)
 
-# EXAMPLE
+# EXAMPLE for blog plost
 enframe('butter pecan ice cream') %>%
   unnest_tokens(
     output = word,
@@ -139,11 +134,14 @@ enframe('butter pecan ice cream') %>%
     n_min = 1
   ) %>% 
   filter(word %in% food.words)
-  
+
 
 # double counts -----------------------------------------------------------
 
-# The issue now is that we're double counting some items. Ice, cream, and ice cream are the most obvious. We can remove this duplicates on an inmate basis by excluding words that exist in longer strings. E.g. exclude "ice" if there is another string like "ice cream" but keep "ice cream."
+# The issue now is that we're double counting some items. Ice, cream, and 
+#   ice cream are the most obvious. We can remove this duplicates on an 
+#   inmate basis by excluding words that exist in longer strings. E.g. 
+#   exclude "ice" if there is another string like "ice cream" but keep "ice cream."
 
 # split the $word with more than one word into a list
 #  then split the dataframe by $Name
@@ -156,14 +154,6 @@ name.groups <- parsed.ngrams %>%
 # check to see if the $word is contained within 
 #  another $word for that $Name
 deduped.ngrams <- lapply(name.groups, function(group) {
-  
-  # first remove $words that are more than two
-  #  individual words (e.g. "chocolate ice cream") b/c
-  #  these will be captured in "ice cream"
-  group <- group %>%
-    rowwise() %>%
-    filter(length(word) <= 2) %>% 
-    ungroup()
   
   # if only one unique word then return that one word
   if (length(unique(group$word)) == 1) {
@@ -183,6 +173,11 @@ deduped.ngrams <- lapply(name.groups, function(group) {
       })
     
     non.duplicates <- group$word[duplicate.bool]
+    
+    # remove $words that are more than two
+    #  individual words (e.g. "chocolate ice cream") b/c
+    #  these will be captured in "ice cream"
+    non.duplicates <- non.duplicates[sapply(non.duplicates, length) <= 2]
   }
   return(group %>% filter(word %in% non.duplicates))
 }) %>% bind_rows()
@@ -197,8 +192,7 @@ deduped.ngrams <- deduped.ngrams %>%
 # n removed rows
 nrow(parsed.ngrams) - nrow(deduped.ngrams)
 
-
-# stemming
+# steming the words
 deduped.ngrams <- deduped.ngrams %>% 
   mutate(stem = wordStem(word, language = 'english'))
 
@@ -254,13 +248,13 @@ final.freq.plot <- deduped.ngrams %>%
 
 final.freq.plot
 
-ggsave(filename = "Plots/Common_last_meals.svg",
-       plot = last_plot(),
-       device = "svg",
-       width = 8,
-       height = 7)
+# ggsave(filename = "Plots/Common_last_meals.svg",
+#        plot = final.freq.plot,
+#        device = "svg",
+#        width = 8,
+#        height = 7)
 
-
+# find the top five most popular food items
 top.five <- deduped.ngrams %>% 
   group_by(stem) %>%
   summarize(n = n()) %>%
@@ -269,12 +263,13 @@ top.five <- deduped.ngrams %>%
   left_join(unique.stem.word.pairs) %>% 
   pull(word)
 
-
+# calculate the proportion of meals these five show up in
 deduped.ngrams %>% 
   group_by(Name) %>% 
   summarize(match = max(word %in% top.five)) %>% 
   summarize(mean(match))
 
+# count the number of meals these five show up in 
 deduped.ngrams %>% 
   group_by(word) %>%
   summarize(n = n()) %>% 
@@ -289,7 +284,7 @@ cosine_matrix <- function(tokenized_data, lower = 0, upper = 1, filt = 0) {
   # ruthlessly stolen from https://www.markhw.com/blog/word-similarity-graphs
   
   if (!all(c("word", "Name") %in% names(tokenized_data))) {
-    stop("tokenized_data must contain variables named word and id")
+    stop("tokenized_data must contain variables named word and Name")
   }
   
   if (lower < 0 | lower > 1 | upper < 0 | upper > 1 | filt < 0 | filt > 1) {
@@ -318,14 +313,13 @@ cosine_matrix <- function(tokenized_data, lower = 0, upper = 1, filt = 0) {
   return(out)
 }
 
+# calculate the cosine of our ngrams grouped by Name
 cos_mat <- cosine_matrix(deduped.ngrams, lower = .035,
                          upper = .90, filt = .75)
 head(cos_mat)
 
-
-# There are two clear communities here. In the top left section, "home-style" food such as mashed potatoes, gravy, tea, peas, and rice all naturally go together. In the center section, hamburger, onion rings, fried chicken, and steakare also naturally grouped. Intiutively, cheese is stuck right in the middle of these two groups. I interpret this as it's the great equalizer, [almost everyone loves cheese](link). It's important to view this graph a few different times with various random seeds. There's many correct ways to visualize the same graph and sometimes you can draw the wrong conclusions from the visualization so it's important to take the above conclusions with some reservation.
-
-set.seed(22)
+# graph our cosine matrix
+set.seed(44)
 cosine.graph <- graph_from_adjacency_matrix(cos_mat, 
                                             mode = "undirected", 
                                             weighted = TRUE) %>%
@@ -339,42 +333,265 @@ cosine.graph <- graph_from_adjacency_matrix(cos_mat,
                   color = "#0b2919")
 cosine.graph
 
+# ggsave(filename = "Plots/last_meals_graph.svg",
+#        plot = cosine.graph,
+#        device = "svg",
+#        width = 8,
+#        height = 7)
 
-ggsave(filename = "Plots/last_meals_graph.svg",
-       plot = last_plot(),
-       device = "svg",
-       width = 8,
-       height = 7)
+
+# repeat the previous graph 20 times 
+#  save each graph and then convert to a single gif via imagemagick shell
+# setwd("Plots/gif")
+# set.seed(44)
+# for (i in 1:20L){
+#   graph_from_adjacency_matrix(cos_mat,
+#                               mode = "undirected",
+#                               weighted = TRUE) %>%
+#     ggraph(layout = 'nicely') +
+#     geom_edge_link(aes(alpha = weight),
+#                    show.legend = FALSE,
+#                    color = "#2b7551") +
+#     geom_node_label(aes(label = name),
+#                     label.size = 0.1,
+#                     size = 3,
+#                     color = "#0b2919")
+# 
+#   ggsave(filename = paste0(i, ".png"),
+#          plot = last_plot(),
+#          device = "png",
+#          width = 8,
+#          height = 7)
+# }
+# system("convert -delay 80 *.png last_meals_graph.gif") # this calls imagemagik via shell
+# file.remove(list.files(pattern = ".png"))
+# setwd(normalizePath('../..'))
 
 
-# save 20  different graphs then convert to a single gif via imagemagick shell
-setwd("Plots/gif")
+
+# state analysis ----------------------------------------------------------
+
+# count of observations by state
+US.table %>% 
+  count(State) %>% 
+  ggplot(aes(x = reorder(State, -n), y = n)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = NULL,
+       y = 'Count')
+
+# Northeast
+MidAtlantic <- c('New Jersey', 'New York', 'Pennsylvania')
+NewEngland <- c('Connecticut', 'Maine', 'Massachusetts', 'New Hampshire',
+                'Rhode Island', 'Vermont')
+NE <- tibble(Division = 'MidAtlantic',
+       State = MidAtlantic) %>% 
+  bind_rows(tibble(Division =  'NewEngland',
+                   State = NewEngland)) %>% 
+  mutate(Region = 'Northeast')
+
+# Midwest
+ENCentral <- c('Indiana', 'Illinois', 'Michigan',
+               'Ohio', 'Wisconsin')
+WNCentral <- c('Iowa', 'Kansas', 'Minnesota', 'Missouri',
+               'Nebraska', 'North Dakota', 'South Dakota')
+MW <- tibble(Division = 'ENCentral',
+             State = ENCentral) %>% 
+  bind_rows(tibble(Division =  'WNCentral',
+                   State = WNCentral)) %>% 
+  mutate(Region = 'Midwest')
+
+# South
+SAtlantic <- c('Delaware',  'District of Columbia', 'Florida',
+               'Georgia', 'Maryland', 'North Carolina',
+               'South Carolina', 'Virginia', 'West Virginia')
+ESCentral <- c('Alabama', 'Kentucky', 'Mississippi', 'Tennessee')
+WSCentral <- c('Arkansas', 'Louisiana', 'Oklahoma', 'Texas')
+South <- tibble(Division = 'SAtlantic',
+             State = SAtlantic) %>% 
+  bind_rows(tibble(Division =  'ESCentral',
+                   State = ESCentral)) %>%
+  bind_rows(tibble(Division = 'WSCentral',
+                   State = WSCentral)) %>% 
+  mutate(Region = 'South')
+
+# West
+Mountain <- c('Arizona', 'Colorado', 'Idaho', 'New Mexico',
+              'Montana', 'Utah', 'Nevada', 'Wyoming')
+Pacific <- c('Alaska', 'California', 'Hawaii', 'Oregon', 'Washington')
+West <- tibble(Division = 'Mountain',
+             State = Mountain) %>% 
+  bind_rows(tibble(Division =  'Pacific',
+                   State = Pacific)) %>% 
+  mutate(Region = 'West')
+
+# bind all the rows togther. final dataframe is list of all states with 
+#  their division and region
+regions <- bind_rows(NE, MW, South, West)
+
+# add region to the last meals data frame
+state.regions <- US.table %>% 
+  mutate(State = case_when(
+    State == 'Washington state' ~ 'Washington',
+    State == 'Washington State' ~ 'Washington',
+    TRUE ~ State)) %>% 
+  left_join(regions, by = 'State')
+
+# count of most common regions
+state.regions %>% 
+  count(Region) %>%
+  mutate(Region = recode(Region,  'Other' = 'NA')) %>%
+  ggplot(aes(x = reorder(Region, -n), y = n, fill = n)) +
+  geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  coord_flip() +
+  labs(x = NULL,
+       y = 'Count') +
+  theme(legend.position = "none")
+
+# repeat the cosine process but group by region instead of Name
+#  I also did this for state and division but it didn't work well
+parsed.ngrams <- state.regions %>% 
+  select(Region, Requested.Meal) %>% 
+  unnest_tokens(output = word, input = Requested.Meal, token = "ngrams", n = 3, n_min = 1) %>% 
+  anti_join(stop_words, by = "word") %>% 
+  filter(word %in% food.words)
+
+# split the $word with more than one word into a list
+#  then split the dataframe by $Name
+# remove unrelated words
+state.groups <- parsed.ngrams %>% 
+  mutate(word = str_split(word, pattern = " ")) %>% 
+  group_by(Region) %>% 
+  group_split()
+
+# check to see if the $word is contained within 
+#  another $word for that $Name
+deduped.ngrams <- lapply(state.groups, function(group) {
+  
+  # if only one unique word then return that one word
+  if (length(unique(group$word)) == 1) {
+    non.duplicates <- group$word[1]
+  } else{
+    # for groups that have more than one row check to 
+    #   see if a word is contained in another row
+    duplicate.bool <-
+      sapply(1:length(group$word), function(i) {
+        x <- group$word[i]
+        lst <- group$word
+        lst <- lst[!(lst %in% x)]
+        word.in.list <- sapply(lst, function(y) {
+          x %in% y
+        })
+        return(sum(word.in.list) == 0)
+      })
+    
+    non.duplicates <- group$word[duplicate.bool]
+    
+    # remove $words that are more than two
+    #  individual words (e.g. "chocolate ice cream") b/c
+    #  these will be captured in "ice cream"
+    non.duplicates <- non.duplicates[sapply(non.duplicates, length) <= 2]
+  }
+  return(group %>% filter(word %in% non.duplicates))
+}) %>% bind_rows()
+rm(state.groups)
+
+# unlist the word column and stem
+deduped.ngrams <- deduped.ngrams %>% 
+  rowwise() %>% 
+  mutate(word = paste0(word, collapse = " ")) %>% 
+  ungroup() %>% 
+  mutate(stem = wordStem(word, language = 'english'))
+
+# get most common word for each stem
+unique.stem.word.pairs <- deduped.ngrams %>% 
+  select(stem, word) %>%
+  group_by(stem, word) %>% 
+  summarize(n = n()) %>% 
+  group_by(stem) %>% 
+  filter(n == max(n)) %>% 
+  select(-n)
+
+# plot the total counts of stems, but use the word as the label
+#  faceted by region
+region.freq.plot <- deduped.ngrams %>% 
+  filter(!is.na(Region)) %>% 
+  group_by(Region) %>% 
+  mutate(region.n = n()) %>% 
+  ungroup() %>% 
+  mutate(Region = paste0(Region, ', n = ', region.n)) %>% 
+  group_by(Region, stem) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  top_n(n = 5, wt = n) %>% 
+  left_join(unique.stem.word.pairs) %>% 
+  ggplot(aes(x = reorder_within(word, n, within = Region), y = n, fill = n)) +
+  geom_col() +
+  scale_x_reordered() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Top five most common items in last meal requests",
+       subtitle = "Data from 130 U.S. inmates since 1927",
+       x = NULL,
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none") +
+  facet_wrap(~Region, scales = 'free_y')
+
+region.freq.plot
+# ggsave(filename = "Plots/last_meals_region.svg",
+#        plot = region.freq.plot,
+#        device = "svg",
+#        width = 8,
+#        height = 7)
+
+
+# cosine graph
 set.seed(22)
-for (i in 1:20L){
-  graph_from_adjacency_matrix(cos_mat,
-                              mode = "undirected",
+deduped.ngrams %>%
+  rename(Name = Region) %>%
+  cosine_matrix(lower = .12,
+                upper = .80,
+                filt = .6) %>%
+  graph_from_adjacency_matrix(mode = "undirected",
                               weighted = TRUE) %>%
-    ggraph(layout = 'nicely') +
-    geom_edge_link(aes(alpha = weight),
-                   show.legend = FALSE,
-                   color = "#2b7551") +
-    geom_node_label(aes(label = name),
-                    label.size = 0.1,
-                    size = 3,
-                    color = "#0b2919")
-
-  ggsave(filename = paste0(i, ".png"),
-         plot = last_plot(),
-         device = "png",
-         width = 8,
-         height = 7)
-}
-system("convert -delay 80 *.png last_meals_graph.gif") # this calls imagemagik via shell
-file.remove(list.files(pattern = ".png"))
-setwd(normalizePath('../..'))
+  ggraph(layout = 'nicely') +
+  geom_edge_link(aes(alpha = weight),
+                 show.legend = FALSE,
+                 color = "#2b7551") +
+  geom_node_label(aes(label = name),
+                  label.size = 0.1,
+                  size = 3,
+                  color = "#0b2919"
+  )
 
 
-## Fast food references
-fast.food.names <- c('KFC', 'McDonald', 'Big Mac', 'whopper', 'Burger King', 'Pizza Hut', 'Domino', 'Coke', 'Pepsi', 'Coca-Cola',  'Dr. Pepper')
+# fast food ---------------------------------------------------------------
+fast.food.names <- c('KFC', "McDonald's", 'Big Mac', 'whopper', 'Burger King', 
+                     'Pizza Hut', "Domino's", 'Coke', 'Pepsi', 'Coca Cola',  'Dr Pepper') %>% 
+  str_to_lower()
 
+# plot of top brands
+US.table %>%
+  select(Name, Requested.Meal) %>% 
+  unnest_tokens(output = word, input = Requested.Meal, token = "ngrams", n = 3, n_min = 1) %>% 
+  anti_join(stop_words, by = "word") %>%
+  filter(word %in% fast.food.names) %>% 
+  mutate(word = recode(word, 'coca cola' = 'coke')) %>% 
+  count(word) %>% 
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col() +
+  scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  labs(title = "Top brands in last meal requests",
+       subtitle = "Data from 130 U.S. inmates since 1927",
+       x = NULL,
+       y = "Count") +
+  coord_flip() +
+  theme(legend.position = "none")
+
+# ggsave(filename = "Plots/top_brands.svg",
+#        plot = last_plot(),
+#        device = "svg",
+#        width = 8,
+#        height = 7)
 

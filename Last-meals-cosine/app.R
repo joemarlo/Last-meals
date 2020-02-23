@@ -51,7 +51,7 @@ food.words <- read_csv("food_words.csv") %>%
 # remove condiments to the food words list
 excl.words <- c("meal", "food", "snack", "drink", "double", "ketchup", "cups", "pecan",
                 "mustard", "mayonnaise", "mayo", "sauce", "sour cream", "fried", "onion",
-                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter")
+                "onions", "pepper", "ranch", "ranch dressing", "meat", "butter", "cigar")
 food.words <- food.words[!(food.words %in% excl.words)]
 
 # add Coke
@@ -72,7 +72,7 @@ calc_cosine <- function(sentence.1, sentence.2) {
         anti_join(stop_words, by = "word") %>%
         filter(word %in% food.words)
     
-    if (!("Sentence.1" %in% parsed.ngrams$Name & "Sentence.2" %in% parsed.ngrams$Name)) stop("Please enter at least one food item")
+    if (!("Sentence.1" %in% parsed.ngrams$Name & "Sentence.2" %in% parsed.ngrams$Name)) stop("No food items detected")
     
     # split the $word with more than one word into a list
     #  then split the dataframe by $Name
@@ -85,14 +85,6 @@ calc_cosine <- function(sentence.1, sentence.2) {
     # check to see if the $word is contained within 
     #  another $word for that $Name
     deduped.ngrams <- lapply(name.groups, function(group) {
-        
-        # first remove $words that are more than two
-        #  individual words (e.g. "chocolate ice cream") b/c
-        #  these will be captured in "ice cream"
-        group <- group %>%
-            rowwise() %>%
-            filter(length(word) <= 2) %>% 
-            ungroup()
         
         # if only one unique word then return that one word
         if (length(unique(group$word)) == 1) {
@@ -112,6 +104,11 @@ calc_cosine <- function(sentence.1, sentence.2) {
                 })
             
             non.duplicates <- group$word[duplicate.bool]
+            
+            # remove $words that are more than two
+            #  individual words (e.g. "chocolate ice cream") b/c
+            #  these will be captured in "ice cream"
+            non.duplicates <- non.duplicates[sapply(non.duplicates, length) <= 2]
         }
         return(group %>% filter(word %in% non.duplicates))
     }) %>% bind_rows()
@@ -163,7 +160,7 @@ ui <- fluidPage(
                 textInput(
                     inputId = "sentence.2",
                     label = NULL,
-                    value = "Pizza, apple pie, coffee, and milk",
+                    value = "He requested one pizza, a cuban cigar, an apple pie, coffee, milk, and antacids",
                     width = '100%',
                     placeholder = NULL
                 )
@@ -175,7 +172,7 @@ ui <- fluidPage(
                 ),
             column(7,
                    plotOutput("anglePlot",
-                              height = '450px')
+                              height = '400px')
             )
         )
 )
@@ -209,20 +206,36 @@ server <- function(input, output) {
         degree.angle <- REdaS::rad2deg(acos(cos.measure))
         
         # draw a plot containing the angle of the cosine measure
+        curve.scalar <- 0.3
+        
         tibble(x = cos(acos(cos.measure)), y = sin(acos(cos.measure))) %>%
             ggplot() +
-            ggforce::geom_circle(aes(x0 = 0, y0 = 0, r = 1), color = 'grey80') +
+            # ggforce::geom_circle(aes(x0 = 0, y0 = 0, r = 1), color = 'grey80') +
             geom_segment(aes(x = 0, y = 0, xend = x, yend = y),
-                         arrow = arrow(type = 'closed', length = unit(0.5, "cm")),
                          alpha = 0.7) +
             geom_segment(aes(x = 0, y = 0, xend = 1, yend = 0)) +
             geom_point(aes(x = 1, y = 0), size = 2) +
             geom_point(aes(x = 0, y = 0), size = 2) +
+            geom_point(aes(x = x, y = y), size = 2) +
+            geom_curve(aes(x = 0.2, y = 1.05, 
+                           xend = 1.05, yend = 0.2),
+                       curvature = -0.4, color = '#2b7551',
+                       arrow = arrow(type = 'closed', length = unit(0.5, "cm"))) +
+            annotate("text", x = 0.85, y = 0.85, 
+                     label = "More similar", angle = -45) +
+            geom_curve(aes(x = x * curve.scalar, 
+                           y = y * curve.scalar + 0.001, 
+                           xend = curve.scalar, 
+                           yend = 0),
+                       curvature = -0.4, color = 'grey80') +
+            geom_label(aes(x = mean(c(x * curve.scalar, curve.scalar)), 
+                           y = mean(c(y * curve.scalar, 0)),
+                           label = paste0(round(degree.angle, 0), '°'))) +
             scale_x_continuous(labels = NULL) +
             scale_y_continuous(labels = NULL) +
-            coord_fixed(xlim = 0:1, ylim = 0:1) +
-            labs(title = "Cosine similarity projected onto the unit circle",
-                 subtitle = paste0('Cosine similarity of ', round(cos.measure, 2), ' equal to ', round(degree.angle, 1), ' degrees'),
+            coord_fixed(xlim = c(0, 1.1), ylim = c(0, 1.1)) +
+            labs(subtitle = "Cosine similarity projected onto the unit circle",
+                 title = paste0('Cosine similarity of ', round(cos.measure, 2), ' equal to ', round(degree.angle, 0), ' degrees'),
                  x = NULL,
                  y = NULL)
 

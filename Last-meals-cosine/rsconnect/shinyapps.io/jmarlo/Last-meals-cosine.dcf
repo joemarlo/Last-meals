@@ -5,8 +5,8 @@ account: jmarlo
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 1849091
-bundleId: 2820848
+bundleId: 2822091
 url: https://jmarlo.shinyapps.io/Last-meals-cosine/
-when: 1582416168.22182
+when: 1582475648.79353
 asMultiple: FALSE
 asStatic: FALSE
