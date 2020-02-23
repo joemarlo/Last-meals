@@ -205,10 +205,11 @@ server <- function(input, output) {
         # calculate the cosine angle in degrees
         degree.angle <- REdaS::rad2deg(acos(cos.measure))
         
-        # draw a plot containing the angle of the cosine measure
+        # scalar for the degree's label
         curve.scalar <- 0.3
         
-        tibble(x = cos(acos(cos.measure)), y = sin(acos(cos.measure))) %>%
+        # draw a plot containing the angle of the cosine measure
+        tibble(x = cos.measure, y = sin(acos(cos.measure))) %>%
             ggplot() +
             # ggforce::geom_circle(aes(x0 = 0, y0 = 0, r = 1), color = 'grey80') +
             geom_segment(aes(x = 0, y = 0, xend = x, yend = y),
@@ -224,7 +225,7 @@ server <- function(input, output) {
             annotate("text", x = 0.85, y = 0.85, 
                      label = "More similar", angle = -45) +
             geom_curve(aes(x = x * curve.scalar, 
-                           y = y * curve.scalar + 0.001, 
+                           y = y * curve.scalar + 0.001, # need this for error handling
                            xend = curve.scalar, 
                            yend = 0),
                        curvature = -0.4, color = 'grey80') +
