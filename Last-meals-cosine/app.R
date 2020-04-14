@@ -72,7 +72,9 @@ calc_cosine <- function(sentence.1, sentence.2) {
         anti_join(stop_words, by = "word") %>%
         filter(word %in% food.words)
     
-    if (!("Sentence.1" %in% parsed.ngrams$Name & "Sentence.2" %in% parsed.ngrams$Name)) stop("No food items detected")
+    if (!("Sentence.1" %in% parsed.ngrams$Name &
+          "Sentence.2" %in% parsed.ngrams$Name))
+        stop(safeError("No food items detected. Please try another meal."))
     
     # split the $word with more than one word into a list
     #  then split the dataframe by $Name

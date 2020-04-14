@@ -239,12 +239,31 @@ final.freq.plot <- deduped.ngrams %>%
   ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
   geom_col() +
   scale_fill_gradient(low = "#0b2919", high = "#2b7551") +
+  geom_text(aes(label = n),
+            hjust = 1.5,
+            color = "white") +
+  geom_curve(aes(x = 6.5, y = 40, 
+                 xend = 9, yend = 43),
+             curvature = 0.4, color = '#428fa1', size = 1.25,
+             arrow = arrow(type = 'closed', length = unit(0.4, "cm"))) +
+  annotate("label", x = 6, y = 35, 
+           fill = '#428fa1',
+           label = "'Ice cream' takes the\ntop spot with 43 occurrences\nin last meal requests",
+           fontface = "bold",
+           color = 'white',
+           size = 4,
+           label.size = 1.25,
+           label.padding = unit(0.75, "lines")) +
   labs(title = "Top 10 most common items in last meal requests",
        subtitle = "Data from 130 U.S. inmates since 1927",
+       caption = "marlo.works",
        x = NULL,
        y = "Count") +
   coord_flip() +
-  theme(legend.position = "none")
+  theme(legend.position = "none",
+        plot.caption = element_text(face = "italic",
+                                    size = 6,
+                                    color = 'grey50'))
 
 final.freq.plot
 
